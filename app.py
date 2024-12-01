@@ -88,16 +88,30 @@ def send_email_notification(to_email, assigner_name, description):
         print(f"Error while sending email: {e}")
     
 # Route to serve the request data
-@app.route('/api/v1/requests', methods=['GET'])
-def get_requests():
+@app.route('/api/v1/requests/<id>', methods=['GET'])
+def get_requests(id):
     try:
-        cursor = collection.find({})
-        # Convert cursor to a list of dictionaries
+        if id == "all":
+            cursor = collection.find({})
+        else:
+            cursor = collection.find({"_id": id})
         requests = list(cursor)
         return jsonify({"status": "success", "data": requests}), 200
     except Exception as e:
+        print(e)
         return jsonify({"status": "error", "message": str(e)}), 500
     
+@app.route('/api/v1/requests/<id>', methods=['DELETE'])
+def delete_requests(id):
+    try:
+        request_data = collection.find_one({'_id': id})
+        if not request_data:
+            return jsonify({'error': 'Request not found'}), 404
+        result = collection.delete_one({'_id': id})
+        return jsonify({"status": "success", "message": "Request got deleted successfully!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/v1/requests/<id>', methods=['PATCH'])
 def update_status(id):
     try:
