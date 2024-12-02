@@ -4,8 +4,14 @@ from bson.objectid import ObjectId  # For working with MongoDB ObjectIds
 import pandas as pd
 from flask_mail import Mail, Message
 import os
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
+from dotenv import load_dotenv
 
 app = Flask(__name__)
+
+# Load environment variables from .env file
+load_dotenv()
 
 # MongoDB configuration
 MONGO_URI = os.getenv('MONGO_URI')
