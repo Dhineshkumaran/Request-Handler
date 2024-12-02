@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_file
 from pymongo import MongoClient
+from bson.objectid import ObjectId  # For working with MongoDB ObjectIds
 import pandas as pd
 from flask_mail import Mail, Message
 import os
@@ -22,7 +23,6 @@ app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS')  # Add your email password
 
 mail = Mail(app)
 
-
 # Route to serve the HTML form
 @app.route('/')
 def serve_form():
@@ -38,7 +38,6 @@ def serve_update_html():
 def handle_form_submission():
     try:
         # Extract form data
-        id = request.form.get("id")
         description = request.form.get("description")
         status = request.form.get("status")
         assigner_name = request.form.get("assigner_name")
@@ -47,7 +46,6 @@ def handle_form_submission():
 
         # Data to store in MongoDB
         data = {
-            "_id": id,
             "description": description,
             "status": status,
             "assigned_by": assigner_name,
@@ -86,7 +84,7 @@ def send_email_notification(to_email, assigner_name, description):
         print("Email sent successfully!")
     except Exception as e:
         print(f"Error while sending email: {e}")
-    
+
 # Route to serve the request data
 @app.route('/api/v1/requests/<id>', methods=['GET'])
 def get_requests(id):
@@ -94,21 +92,28 @@ def get_requests(id):
         if id == "all":
             cursor = collection.find({})
         else:
-            cursor = collection.find({"_id": id})
-        requests = list(cursor)
+            cursor = collection.find({"_id": ObjectId(id)})
+        
+        # Convert cursor to list and serialize _id
+        requests = []
+        for document in cursor:
+            document["_id"] = str(document["_id"])  # Convert ObjectId to string
+            requests.append(document)
+        
         return jsonify({"status": "success", "data": requests}), 200
     except Exception as e:
         print(e)
         return jsonify({"status": "error", "message": str(e)}), 500
-    
+
 @app.route('/api/v1/requests/<id>', methods=['DELETE'])
 def delete_requests(id):
     try:
-        request_data = collection.find_one({'_id': id})
+        request_data = collection.find_one({'_id': ObjectId(id)})  # Use ObjectId
         if not request_data:
             return jsonify({'error': 'Request not found'}), 404
-        result = collection.delete_one({'_id': id})
-        return jsonify({"status": "success", "message": "Request got deleted successfully!"}), 200
+        
+        result = collection.delete_one({'_id': ObjectId(id)})  # Use ObjectId
+        return jsonify({"status": "success", "message": "Request deleted successfully!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -123,12 +128,12 @@ def update_status(id):
             return jsonify({'error': 'Invalid status'}), 400
 
         # Fetch the request to get email and other details
-        request_data = collection.find_one({'_id': id})
+        request_data = collection.find_one({'_id': ObjectId(id)})  # Use ObjectId
         if not request_data:
             return jsonify({'error': 'Request not found'}), 404
 
         # Update the status in MongoDB
-        result = collection.update_one({'_id': id}, {'$set': {'status': new_status}})
+        result = collection.update_one({'_id': ObjectId(id)}, {'$set': {'status': new_status}})  # Use ObjectId
         if result.matched_count == 0:
             return jsonify({'error': 'Request not found'}), 404
 
@@ -139,10 +144,9 @@ def update_status(id):
         send_status_update_email(to_email, assignee_name, description, new_status)
 
         return jsonify({'message': 'Status updated successfully and email sent!'}), 200
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
 def send_status_update_email(to_email, assignee_name, description, new_status):
     try:
         subject = "Request Status Updated"
@@ -165,14 +169,15 @@ def send_status_update_email(to_email, assignee_name, description, new_status):
         print("Status update email sent successfully!")
     except Exception as e:
         print(f"Error while sending status update email: {e}")
-        
+
 @app.route('/download')
 def get_csv():
-    client = MongoClient(MONGO_URI)
-    db = client['request_handler']  # Database name
-    collection = db['requests']  # Collection name
-    cursor = collection.find() 
-    data = list(cursor)
+    cursor = collection.find()
+    data = []
+    for document in cursor:
+        document["_id"] = str(document["_id"])  # Serialize _id
+        data.append(document)
+    
     df = pd.DataFrame(data)
     df.to_csv('request_data.csv', index=False)
     return send_file('request_data.csv', as_attachment=True)
