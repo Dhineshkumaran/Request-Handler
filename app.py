@@ -1,11 +1,10 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, send_file, request, redirect, render_template, url_for, session, jsonify
+from werkzeug.security import check_password_hash, generate_password_hash
 from pymongo import MongoClient
 from bson.objectid import ObjectId  # For working with MongoDB ObjectIds
 import pandas as pd
 from flask_mail import Mail, Message
 import os
-# import logging
-# logging.basicConfig(level=logging.DEBUG)
 from dotenv import load_dotenv
 
 app = Flask(__name__)
@@ -18,6 +17,7 @@ MONGO_URI = os.getenv('MONGO_URI')
 client = MongoClient(MONGO_URI)
 db = client['request_handler']  # Database name
 collection = db['requests']  # Collection name
+users_collection = db['users']
 
 # Flask-Mail configuration
 app.config['MAIL_SERVER'] = 'smtp.googlemail.com'  # Use your mail server
@@ -29,54 +29,62 @@ app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS')  # Add your email password
 
 mail = Mail(app)
 
+# Secret key for session management
+app.secret_key = os.getenv('SECRET_KEY')
+
 # Route to serve the HTML form
 @app.route('/')
 def serve_form():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     return send_file("index.html")
 
 # Route to serve the Update HTML
 @app.route('/update')
 def serve_update_html():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     return send_file("update.html")
 
 # Route to handle form submission
 @app.route('/submit', methods=['POST'])
 def handle_form_submission():
     try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+
         # Extract form data
         description = request.form.get("description")
         status = request.form.get("status")
-        assigner_name = request.form.get("assigner_name")
-        assignee_name = request.form.get("assignee_name")
-        email = request.form.get("email")
+        assigner_email = request.form.get("assigner_email")
+        assignee_email = request.form.get("assignee_email")
 
         # Data to store in MongoDB
         data = {
             "description": description,
             "status": status,
-            "assigned_by": assigner_name,
-            "assigned_to": assignee_name,
-            "email": email
+            "assigned_by": assigner_email,
+            "assigned_to": assignee_email,
         }
 
         # Insert data into MongoDB
         collection.insert_one(data)
 
         # Send email notification
-        send_email_notification(email, assigner_name, description)
+        send_email_notification(assignee_email, assigner_email, description)
 
         return "Form submitted successfully!", 200
     except Exception as e:
         print(f"Error: {e}")
         return "Error occurred while submitting the form!", 500
 
-def send_email_notification(to_email, assigner_name, description):
+def send_email_notification(assignee_email, assigner_email, description):
     try:
         subject = "New Request Assigned"
         body = f"""
         Hello,
 
-        A new request has been assigned to you by {assigner_name}.
+        A new request has been assigned to you by {assigner_email}.
         Description: {description}
 
         Please check your dashboard for more details.
@@ -84,7 +92,7 @@ def send_email_notification(to_email, assigner_name, description):
         Regards,
         Request Manager
         """
-        msg = Message(subject, sender=os.getenv('EMAIL_USER'), recipients=[to_email])
+        msg = Message(subject, sender=os.getenv('EMAIL_USER'), recipients=[assignee_email])
         msg.body = body
         mail.send(msg)
         print("Email sent successfully!")
@@ -144,23 +152,23 @@ def update_status(id):
             return jsonify({'error': 'Request not found'}), 404
 
         # Send email notification
-        to_email = request_data['email']
-        assignee_name = request_data['assigned_to']
+        id = request_data['_id']
+        assignee_email = request_data['assigned_to']
         description = request_data['description']
-        send_status_update_email(to_email, assignee_name, description, new_status)
+        send_status_update_email( id, assignee_email, description, new_status)
 
         return jsonify({'message': 'Status updated successfully and email sent!'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def send_status_update_email(to_email, assignee_name, description, new_status):
+def send_status_update_email( id, assignee_email, description, new_status):
     try:
         subject = "Request Status Updated"
         body = f"""
-        Hello {assignee_name},
+        Hello {assignee_email},
 
         The status of the request assigned to you has been updated.
-
+        Request ID: {id}
         Description: {description}
         New Status: {new_status}
 
@@ -169,7 +177,7 @@ def send_status_update_email(to_email, assignee_name, description, new_status):
         Regards,
         Request Manager
         """
-        msg = Message(subject, sender=os.getenv('EMAIL_USER'), recipients=[to_email])
+        msg = Message(subject, sender=os.getenv('EMAIL_USER'), recipients=[assignee_email])
         msg.body = body
         mail.send(msg)
         print("Status update email sent successfully!")
@@ -187,6 +195,47 @@ def get_csv():
     df = pd.DataFrame(data)
     df.to_csv('request_data.csv', index=False)
     return send_file('request_data.csv', as_attachment=True)
+
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    error = None
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        if users_collection.find_one({"email": email}):
+            error = "User already exists. Please log in."
+            return render_template('signup.html', error=error)
+
+        hashed_password = generate_password_hash(password)
+        users_collection.insert_one({"email": email, "password": hashed_password})
+        return redirect(url_for('login'))
+
+    return render_template('signup.html', error=error)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        user = users_collection.find_one({"email": email})
+        if user and check_password_hash(user["password"], password):
+            session['user_id'] = str(user['_id'])
+            session['email'] = user['email']
+            return redirect(url_for('serve_form'))
+        else:
+            error = "Invalid email or password"
+
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=3000)

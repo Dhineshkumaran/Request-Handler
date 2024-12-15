@@ -20,7 +20,6 @@
             align-items: center;
             color: #fff;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin-bottom: 75px;
         }
 
         .navbar a {
@@ -45,7 +44,7 @@
             justify-content: center;
             align-items: center;
             height: 90vh;
-            margin: 75px 0px 75px 0px;
+            /* margin: 75px 0px 75px 0px; */
         }
 
         .form-container {
@@ -125,6 +124,7 @@
         <div class="nav-items">
             <a href="/">Add Request</a>
             <a href="/update">Update Request</a>
+            <a href="/download">Download CSV</a>
         </div>
     </div>
 
@@ -146,23 +146,14 @@
                 </div>
                 <div class="form-group">
                     <label for="name">Assigned By</label>
-                    <input type="text" id="assigner_name" name="assigner_name" placeholder="Enter the Assigner Name">
+                    <input type="text" id="assigner_email" name="assigner_email" placeholder="Enter the Assigner Email address">
                 </div>
                 <div class="form-group">
                     <label for="name">Assigned To</label>
-                    <input type="text" id="assignee_name" name="assignee_name" placeholder="Enter the Assignee Name">
-                </div>
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" placeholder="Enter the Assignee Email">
+                    <input type="text" id="assignee_email" name="assignee_email" placeholder="Enter the Assignee Email address">
                 </div>
                 <button type="submit">Submit</button>
             </form>
-            <div class="download-button">
-                <a href="/download" download>
-                    <button type="button">Download CSV</button>
-                </a>
-            </div>
             <p>All fields are required.</p>
         </div>
     </div>

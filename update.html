@@ -133,6 +133,7 @@
         <div class="nav-items">
             <a href="/">Add Request</a>
             <a href="/update">Update Request</a>
+            <a href="/download">Download CSV</a>
         </div>
     </div>
     <div class="search-bar">
@@ -183,9 +184,6 @@
                     const assignedToName = document.createElement('p');
                     assignedToName.textContent = `Assigned To: ${request.assigned_to}`;
 
-                    const email = document.createElement('p');
-                    email.textContent = `Email: ${request.email}`;
-
                     const changeStatusButton = document.createElement('button');
                     changeStatusButton.textContent = 'Change Status';
                     changeStatusButton.onclick = () => toggleStatus(request._id, request.status);
@@ -200,7 +198,6 @@
                     card.appendChild(status);
                     card.appendChild(assignedByName);
                     card.appendChild(assignedToName);
-                    card.appendChild(email);
                     card.appendChild(changeStatusButton);
                     card.appendChild(deleteRequestButton);
 
