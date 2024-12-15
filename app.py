@@ -68,23 +68,26 @@ def handle_form_submission():
         }
 
         # Insert data into MongoDB
-        collection.insert_one(data)
+        response = collection.insert_one(data)
+        id = str(response)[26:-22]
+        print(id)
 
         # Send email notification
-        send_email_notification(assignee_email, assigner_email, description)
+        send_email_notification(id, assignee_email, assigner_email, description)
 
         return "Form submitted successfully!", 200
     except Exception as e:
         print(f"Error: {e}")
         return "Error occurred while submitting the form!", 500
 
-def send_email_notification(assignee_email, assigner_email, description):
+def send_email_notification(id, assignee_email, assigner_email, description):
     try:
         subject = "New Request Assigned"
         body = f"""
         Hello,
 
         A new request has been assigned to you by {assigner_email}.
+        Request ID: {id}
         Description: {description}
 
         Please check your dashboard for more details.
@@ -155,13 +158,13 @@ def update_status(id):
         id = request_data['_id']
         assignee_email = request_data['assigned_to']
         description = request_data['description']
-        send_status_update_email( id, assignee_email, description, new_status)
+        send_status_update_email(id, assignee_email, description, new_status)
 
         return jsonify({'message': 'Status updated successfully and email sent!'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def send_status_update_email( id, assignee_email, description, new_status):
+def send_status_update_email(id, assignee_email, description, new_status):
     try:
         subject = "Request Status Updated"
         body = f"""
